@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sportspicker-cli"
+version = "0.1.0"
+description = "A command line over the pick'em scoring arithmetic. No database, no server."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Elastic-2.0" }
+
+# One dependency, and it has none of its own. That is the whole point: this
+# runs anywhere the library does, including inside an offline sandbox that
+# mounts the system but not your home directory. A nicer argument parser would
+# cost that, so the CLI is argparse.
+dependencies = ["sportspicker-core"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+sportspicker = "sportspicker_cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["sportspicker_cli*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
