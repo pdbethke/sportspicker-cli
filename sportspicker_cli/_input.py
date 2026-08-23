@@ -12,8 +12,8 @@ class Score:
     What one member scored in a round.
 
     A plain frozen dataclass on purpose: the scoring library takes anything
-    carrying these four attributes, so the command line can feed it JSON
-    without the application's ORM being anywhere nearby.
+    carrying these four attributes, so the command line can feed it JSON with no
+    ORM anywhere nearby.
     """
 
     membership_id: int

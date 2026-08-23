@@ -1,9 +1,9 @@
 """
 Printing, with no dependencies.
 
-The application's own CLI renders through Typer. This package deliberately does
-not: its only dependency is sportspicker-core, which has none, so the whole
-thing runs inside a sandbox that mounts the system and not your home directory
+Deliberately no rendering library: the only dependency is sportspicker-core,
+which has none of its own, so the whole thing runs inside a sandbox that mounts
+the system and not your home directory
 — the same property that lets the scoring library be audited offline. A
 formatting convenience is not worth giving that up.
 """

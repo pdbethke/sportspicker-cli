@@ -3,9 +3,8 @@
 A command line over the pick'em scoring arithmetic. Scores and a strategy go in
 as JSON; weights, ranks and points come out.
 
-No database, no server, no clock — those belong to the application this was
-carved out of. One dependency, [sportspicker-core][core], which has none of its
-own.
+No database, no server, no clock — none of that is arithmetic. One dependency,
+[sportspicker-core][core], which has none of its own.
 
 ## Why it exists
 
@@ -14,9 +13,7 @@ The guarantee the whole design rests on is this:
 > A contest contributes **exactly** its budget, whatever scoring rule is chosen,
 > however many members played, and however they scored.
 
-That is a claim, and claims should be checkable. Until now the only way to
-exercise it was through a service with a database behind it. This is one
-command:
+That is a claim, and claims should be checkable. This is one command:
 
 ```console
 $ sportspicker award round.json --budget 1000 --rounds 4
