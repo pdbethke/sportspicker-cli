@@ -4,11 +4,29 @@ import sys
 
 from sportspicker_core import (
     award_round, effective_pot, normalization_registry, pot_for, round_pots,
-    to_amount,
+    to_amount, validate_current_strategy,
 )
 
 from ._input import read_payload, scores_from
 from ._output import emit, emit_pairs, fail
+
+
+def _validated(slug: str, params: dict):
+    """
+    The strategy named, after core's own check of its params.
+
+    A normalising strategy gets ``validate_current_strategy``, the check the
+    application runs before a config can be saved, so nothing is accepted here
+    that the application would refuse. The baseline cannot be a group's
+    current strategy, but running it here is how its defect is watched, so it
+    gets the same params check without the "may be current" one.
+    """
+    strategy = normalization_registry.get(slug)
+    if strategy.is_baseline:
+        strategy.validate_config(params)
+    else:
+        validate_current_strategy(slug, params)
+    return strategy
 
 
 def _weigh(args) -> None:
@@ -16,7 +34,7 @@ def _weigh(args) -> None:
     scores = scores_from(payload)
     params = payload.get("params", {})
     try:
-        weights = normalization_registry.get(args.strategy).weigh_round(scores, params)
+        weights = _validated(args.strategy, params).weigh_round(scores, params)
     except (ValueError, KeyError) as exc:
         fail(str(exc))
     emit([{"membership_id": m, "weight": w} for m, w in sorted(weights.items())],
@@ -40,7 +58,7 @@ def _award(args) -> None:
         else:
             pot = pot_for(args.budget, args.rounds, args.round - 1)
 
-        chosen = normalization_registry.get(args.strategy)
+        chosen = _validated(args.strategy, params)
         weights = chosen.weigh_round(scores, params)
         awards = award_round(scores, weights, pot, params, is_baseline=chosen.is_baseline)
     except (TypeError, ValueError, KeyError) as exc:
@@ -98,7 +116,7 @@ def _pot(args) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="sportspicker",
+        prog="sportspicker-calc",
         description="Scoring arithmetic on JSON. No database, no server.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
@@ -109,12 +127,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     w = add_json(sub.add_parser("weigh", help="relative weights a strategy gives one round"))
     w.add_argument("source", nargs="?", help="JSON file, or - for stdin")
-    w.add_argument("--strategy", default="rank")
+    w.add_argument("--strategy", required=True, help="see the strategies command")
     w.set_defaults(func=_weigh)
 
     a = add_json(sub.add_parser("award", help="award one round: scores in, points out"))
     a.add_argument("source", nargs="?", help="JSON file, or - for stdin")
-    a.add_argument("--strategy", default="rank")
+    a.add_argument("--strategy", required=True, help="see the strategies command")
     # Amounts are read as text, never float: the library works in exact
     # ten-thousandths, and a float would already have lost the typed value.
     a.add_argument("--pot", help="this round's pot")

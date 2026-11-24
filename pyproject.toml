@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sportspicker-cli"
-version = "0.2.0"
+version = "0.3.0"
 description = "A command line over the pick'em scoring arithmetic. No database, no server."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -14,14 +14,22 @@ license = { text = "Elastic-2.0" }
 # runs anywhere the library does, including inside an offline sandbox that
 # mounts the system but not your home directory. A nicer argument parser would
 # cost that, so the CLI is argparse.
-# 0.2.0 is where amounts became exact decimals and pot_for took a round index.
-dependencies = ["sportspicker-core>=0.2.0"]
+#
+# sportspicker-core is not published to PyPI, so it is pinned to a release
+# tag's archive on GitHub. A bare "sportspicker-core" would be satisfied by
+# whatever someone else published under that name. The tag must exist for an
+# install to work.
+dependencies = [
+    "sportspicker-core @ https://github.com/pdbethke/sportspicker-core/archive/refs/tags/v0.3.0.tar.gz",
+]
 
 [project.optional-dependencies]
 test = ["pytest"]
 
 [project.scripts]
-sportspicker = "sportspicker_cli.main:main"
+# Not "sportspicker": the application installs a command by that name, and
+# two packages providing one script overwrite each other.
+sportspicker-calc = "sportspicker_cli.main:main"
 
 [tool.setuptools.packages.find]
 include = ["sportspicker_cli*"]
