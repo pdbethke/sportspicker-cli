@@ -8,6 +8,7 @@ taken on trust, so the tests check the output a person reads, not internals.
 import json
 import subprocess
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -32,6 +33,17 @@ def round_file(tmp_path):
     return str(p)
 
 
+def exact(text: str):
+    """
+    Parse JSON output with every number read as a Decimal.
+
+    The numbers this prints are exact decimals in ten-thousandths. Reading
+    them back as floats would put the drift back in and make an exact
+    comparison meaningless.
+    """
+    return json.loads(text, parse_float=Decimal)
+
+
 class TestPotExactness:
     """The guarantee this command line exists to make visible."""
 
@@ -39,18 +51,42 @@ class TestPotExactness:
     def test_every_strategy_awards_exactly_the_pot(self, round_file, strategy, capsys):
         main(["award", round_file, "--strategy", strategy, "--pot", "250", "--json"])
 
-        awards = json.loads(capsys.readouterr().out)
-        assert sum(a["points_awarded"] for a in awards) == pytest.approx(250, rel=1e-3)
+        awards = exact(capsys.readouterr().out)
+        assert sum(a["points_awarded"] for a in awards) == Decimal(250)
+
+    @pytest.mark.parametrize("strategy", ["rank", "share", "equal"])
+    def test_a_pot_that_does_not_divide_is_still_paid_exactly(self, round_file, strategy, capsys):
+        main(["award", round_file, "--strategy", strategy, "--pot", "1000", "--json"])
+
+        awards = exact(capsys.readouterr().out)
+        assert sum(a["points_awarded"] for a in awards) == Decimal(1000)
 
     def test_deriving_the_pot_from_a_budget_matches_asking_for_it(self, round_file, capsys):
-        """--budget with --rounds is how a contest actually prices a round."""
-        main(["award", round_file, "--budget", "1000", "--rounds", "4", "--json"])
-        derived = json.loads(capsys.readouterr().out)
+        """--budget with --rounds and --round is how a contest prices a round."""
+        main(["award", round_file, "--budget", "1000", "--rounds", "3", "--round", "1", "--json"])
+        derived = exact(capsys.readouterr().out)
 
-        main(["award", round_file, "--pot", "250", "--json"])
-        direct = json.loads(capsys.readouterr().out)
+        main(["award", round_file, "--pot", "333.3334", "--json"])
+        direct = exact(capsys.readouterr().out)
 
         assert derived == direct
+
+    def test_a_budget_needs_the_round_it_is_pricing(self, round_file, capsys):
+        """
+        A budget that does not divide evenly gives its leftover ten-thousandths
+        to the earliest rounds, so which round is being priced matters and is
+        never assumed.
+        """
+        with pytest.raises(SystemExit):
+            main(["award", round_file, "--budget", "1000", "--rounds", "3"])
+
+        assert "--round" in capsys.readouterr().err
+
+    def test_a_round_outside_the_contest_is_refused(self, round_file, capsys):
+        with pytest.raises(SystemExit):
+            main(["award", round_file, "--budget", "1000", "--rounds", "3", "--round", "4"])
+
+        assert "round" in capsys.readouterr().err
 
     def test_the_human_readable_output_states_both_numbers(self, round_file, capsys):
         """
@@ -58,10 +94,26 @@ class TestPotExactness:
         that comparison IS the guarantee, and burying either one turns a
         checkable claim back into a promise.
         """
-        main(["award", round_file, "--budget", "1000", "--rounds", "4"])
+        main(["award", round_file, "--budget", "1000", "--rounds", "4", "--round", "1"])
 
         out = capsys.readouterr().out
         assert "pot 250.0000" in out and "awarded 250.0000" in out
+        assert "WARNING" not in out
+
+
+    def test_a_pot_shrunk_by_min_participants_is_named_not_flagged(self, tmp_path, capsys):
+        """
+        Two of a required four scored, so half the pot is at stake. That is
+        the rule working, not the guarantee breaking, and the output says which.
+        """
+        p = tmp_path / "thin.json"
+        p.write_text(json.dumps({**ROUND, "params": {**ROUND["params"], "min_participants": 6}}))
+
+        main(["award", str(p), "--pot", "300"])
+
+        out = capsys.readouterr().out
+        assert "awarded 150.0000" in out
+        assert "shrank this round's pot to 150.0000" in out
         assert "WARNING" not in out
 
 
@@ -93,12 +145,20 @@ class TestPot:
 
     def test_pot_divides_the_budget_across_every_round(self, capsys):
         main(["pot", "1000", "4", "--json"])
-        assert json.loads(capsys.readouterr().out)["pot_per_round"] == 250
+        assert exact(capsys.readouterr().out)["round_pots"] == [Decimal(250)] * 4
+
+    def test_the_round_pots_add_back_up_to_the_budget(self, capsys):
+        """Three rounds of 1000: the leftover ten-thousandth goes to the first."""
+        main(["pot", "1000", "3", "--json"])
+
+        shown = exact(capsys.readouterr().out)
+        assert shown["round_pots"] == [Decimal("333.3334"), Decimal("333.3333"), Decimal("333.3333")]
+        assert sum(shown["round_pots"]) == shown["budget"] == Decimal(1000)
 
     def test_a_single_round_contest_pays_its_whole_budget(self, capsys):
         """A fight card is one round and must be worth its whole budget."""
         main(["pot", "1000", "1", "--json"])
-        assert json.loads(capsys.readouterr().out)["pot_per_round"] == 1000
+        assert exact(capsys.readouterr().out)["round_pots"] == [Decimal(1000)]
 
 
 class TestFailures:
@@ -132,6 +192,21 @@ class TestFailures:
             main(["award", round_file, "--strategy", "nope", "--pot", "250"])
 
         assert capsys.readouterr().err.strip() != ""
+
+    def test_a_pot_finer_than_a_ten_thousandth_is_refused(self, round_file, capsys):
+        """Rounding it quietly would pay out a pot nobody asked for."""
+        with pytest.raises(SystemExit) as exit_info:
+            main(["award", round_file, "--pot", "250.00001"])
+
+        assert exit_info.value.code == 1
+        assert "ten-thousandth" in capsys.readouterr().err
+
+    def test_a_budget_that_is_not_a_number_is_refused(self, capsys):
+        with pytest.raises(SystemExit) as exit_info:
+            main(["pot", "lots", "4"])
+
+        assert exit_info.value.code == 1
+        assert "budget" in capsys.readouterr().err
 
     def test_awarding_without_a_pot_or_a_budget_refuses(self, round_file, capsys):
         with pytest.raises(SystemExit):
