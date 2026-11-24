@@ -2,6 +2,7 @@
 import json as _json
 import sys
 from dataclasses import dataclass
+from decimal import Decimal
 
 from ._output import fail
 
@@ -17,7 +18,7 @@ class Score:
     """
 
     membership_id: int
-    raw_points: float
+    raw_points: int | Decimal
     wins: int = 0
     tiebreaker_total: int | None = None
 
@@ -51,8 +52,22 @@ def scores_from(payload: dict) -> list[Score]:
             fail('every score needs "membership_id" and "raw_points"')
         out.append(Score(
             membership_id=int(row["membership_id"]),
-            raw_points=float(row["raw_points"]),
+            raw_points=_points(row["raw_points"]),
             wins=int(row.get("wins", 0)),
             tiebreaker_total=row.get("tiebreaker_total"),
         ))
     return out
+
+
+def _points(value) -> int | Decimal:
+    """
+    Raw points as an exact number.
+
+    JSON hands a decimal like 7.5 over as a binary float. Its shortest repr is
+    the text that was in the file, so converting through str recovers exactly
+    what was written; the scoring library refuses floats where exactness
+    matters, and the raw baseline pays these points out as they stand.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        fail(f'"raw_points" must be a number, not {value!r}')
+    return Decimal(repr(value)) if isinstance(value, float) else value

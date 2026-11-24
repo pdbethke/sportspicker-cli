@@ -16,7 +16,7 @@ The guarantee the whole design rests on is this:
 That is a claim, and claims should be checkable. This is one command:
 
 ```console
-$ sportspicker award round.json --budget 1000 --rounds 4
+$ sportspicker award round.json --budget 1000 --rounds 4 --round 1
 rank  membership_id  raw_score  points_awarded
 ----  -------------  ---------  --------------
 1     1              9          107.7586
@@ -31,13 +31,20 @@ Run the same round through a different strategy and the split changes while the
 total does not:
 
 ```console
-$ sportspicker award round.json --budget 1000 --rounds 4 --strategy share
+$ sportspicker award round.json --budget 1000 --rounds 4 --round 1 --strategy share
 ...
   pot 250.0000   awarded 250.0000
 ```
 
 That is the invariant, on your own data, in a second. If those two numbers ever
-disagree the command says so.
+disagree, by so much as a ten-thousandth, the command says so.
+
+"Exactly" is literal. Amounts are exact decimals in ten-thousandths of a point:
+a pot that does not divide evenly gives its leftover ten-thousandths to the
+members whose shares were cut the most, and a budget that does not divide
+evenly across its rounds gives them to the earliest rounds. That is why pricing
+a round from a budget needs `--round` as well as `--rounds`. Amounts are read as
+text, never as floats; one finer than a ten-thousandth is refused.
 
 ## Commands
 
@@ -46,7 +53,7 @@ disagree the command says so.
 | `award` | award one round — scores and a strategy in, points out |
 | `weigh` | the relative weights a strategy gives a round, before normalization |
 | `strategies` | what is available, and which one deliberately ignores budgets |
-| `pot` | what one round of a contest is worth |
+| `pot` | what each round of a contest is worth, adding back up to the budget |
 
 All of them take `--json` for scripting. Input is a file or stdin.
 
