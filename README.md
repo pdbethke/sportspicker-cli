@@ -16,7 +16,7 @@ The guarantee the whole design rests on is this:
 That is a claim, and claims should be checkable. This is one command:
 
 ```console
-$ sportspicker award round.json --budget 1000 --rounds 4 --round 1
+$ sportspicker-calc award round.json --strategy rank --budget 1000 --rounds 4 --round 1
 rank  membership_id  raw_score  points_awarded
 ----  -------------  ---------  --------------
 1     1              9          107.7586
@@ -31,7 +31,7 @@ Run the same round through a different strategy and the split changes while the
 total does not:
 
 ```console
-$ sportspicker award round.json --budget 1000 --rounds 4 --round 1 --strategy share
+$ sportspicker-calc award round.json --strategy share --budget 1000 --rounds 4 --round 1
 ...
   pot 250.0000   awarded 250.0000
 ```
@@ -55,7 +55,14 @@ text, never as floats; one finer than a ten-thousandth is refused.
 | `strategies` | what is available, and which one deliberately ignores budgets |
 | `pot` | what each round of a contest is worth, adding back up to the budget |
 
-All of them take `--json` for scripting. Input is a file or stdin.
+All of them take `--json` for scripting. Input is a file or stdin. `award` and
+`weigh` need `--strategy`; there is no default rule.
+
+The params are checked by sportspicker-core's `validate_current_strategy`, the
+same check the application runs before a group's rules are saved, so a
+configuration it would refuse is refused here too. The `raw` baseline cannot be
+a group's current strategy, but it can be run here to watch it miss the pot;
+its params are still checked.
 
 ## Input
 
@@ -70,13 +77,26 @@ All of them take `--json` for scripting. Input is a file or stdin.
 ```
 
 `membership_id` and `raw_points` are required; `wins` and `tiebreaker_total` are
-optional.
+optional. The `rank` strategy needs `points_table` and `tail_value`; a
+`min_participants` needs `min_participants_mode` (`"scale"` or `"void"`).
 
 ## Install
 
+Neither package is on PyPI. Install from a checkout:
+
 ```console
-pip install sportspicker-cli
+pip install .
 ```
+
+That installs the `sportspicker-calc` command. Its one dependency is pinned to
+the `v0.3.0` release tag of sportspicker-core, fetched as
+`https://github.com/pdbethke/sportspicker-core/archive/refs/tags/v0.3.0.tar.gz`,
+so that tag must exist on GitHub for the install to work. It is pinned to a URL
+rather than named, because a bare `sportspicker-core` would be satisfied by any
+package someone else published to PyPI under that name.
+
+The command is `sportspicker-calc`, not `sportspicker`, because the application
+built on the same library installs a `sportspicker` command of its own.
 
 Or run it out of a checkout with nothing installed at all:
 

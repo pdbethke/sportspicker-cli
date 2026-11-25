@@ -15,14 +15,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The scoring library is the only dependency and is not on PyPI yet, so
-      # take it from source. In-project venv on purpose: the audit gate's
+      # The scoring library is the only dependency and is not on PyPI, so take
+      # it from source, at the release tag pyproject.toml pins rather than
+      # core's moving main. In-project venv on purpose: the audit gate's
       # sandbox binds /usr but not $HOME, so a runner-level install would be
       # invisible inside it.
       - name: Check out sportspicker-core beside us
         uses: actions/checkout@v4
         with:
           repository: pdbethke/sportspicker-core
+          ref: v0.3.0
           path: .core
 
       - name: Install into an in-project venv
